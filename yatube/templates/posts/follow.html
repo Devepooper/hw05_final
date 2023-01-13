@@ -2,7 +2,7 @@
 {% load thumbnail %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-  {% include 'includes/switcher.html' %}
+  {% include 'includes/switcher.html' with follow=True %}
   <div class="container py-5">
     <h1>{{ title }}</h1>
     {% for post in page_obj %}

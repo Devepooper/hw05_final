@@ -37,7 +37,8 @@ class Post(CreatedModel):
         verbose_name='Картинка',
         upload_to='posts/',
         blank=True,
-        help_text='Загрузите сюда picture'
+        help_text='Загрузите сюда picture',
+        null=True,
     )
 
     class Meta:
@@ -71,11 +72,6 @@ class Comment(models.Model):
 
     def __str__(self):
         return self.text[:30]
-
-    class Meta:
-        ordering = ['-created']
-        verbose_name = 'Комментарий'
-        verbose_name_plural = 'Комментарии'
 
 
 class Follow(models.Model):

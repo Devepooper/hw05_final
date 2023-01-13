@@ -41,16 +41,13 @@ def group_posts(request, slug):
 def profile(request, username):
     template = 'posts/profile.html'
     author = get_object_or_404(User, username=username)
-    following = False
-    if request.user.is_authenticated:
-        following = request.user.follower.filter(author=author).exists()
-    post_list = author.posts.all()
-    paginator = Paginator(post_list, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    following = request.user.is_authenticated and request.user.follower.filter(
+        author=author
+    ).exists()
+    posts = author.posts.select_related('author', 'group')
     context = {
         'author': author,
-        'page_obj': page_obj,
+        'page_obj': paginate_page(request, posts),
         'following': following
     }
     return render(request, template, context)
@@ -96,6 +93,7 @@ def post_edit(request, post_id):
         )
     form = PostForm(
         request.POST or None,
+        files=request.FILES,
         instance=post
     )
     if form.is_valid() and request.method == 'POST':
@@ -127,7 +125,6 @@ def follow_index(request):
     page_obj = paginator.get_page(page_number)
     context = {
         "page_obj": page_obj,
-        "title": "Избранные посты",
     }
     return render(request, "posts/follow.html", context)
 
@@ -145,8 +142,7 @@ def profile_follow(request, username):
 @login_required
 def profile_unfollow(request, username):
     author = get_object_or_404(User, username=username)
-    if Follow.objects.filter(user=request.user, author=author).exists():
-        Follow.objects.get(user=request.user, author=author).delete()
+    Follow.objects.filter(user=request.user, author=author).delete()
     return redirect("posts:follow_index")
 
 

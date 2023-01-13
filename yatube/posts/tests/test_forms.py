@@ -43,6 +43,7 @@ class PostFormTests(TestCase):
         """Создаем клиент зарегистрированного пользователя."""
         self.authorized_client = Client()
         self.authorized_client.force_login(PostFormTests.user)
+        self.guest_client = Client()
 
     def test_create_post(self):
         """Валидная форма создает запись в Post."""
@@ -101,7 +102,7 @@ class PostFormTests(TestCase):
             author=self.user,
             text="Тестовый текст",
         )
-        self.group = Group.objects.create(
+        group = Group.objects.create(
             title="Тестовая группа",
             slug="test-slug",
             description="Тестовое описание",
@@ -109,7 +110,7 @@ class PostFormTests(TestCase):
         posts_count = Post.objects.count()
         form_data = {
             "text": "Изменяем текст",
-            "group": self.group.id,
+            "group": group.id,
             "image": uploaded,
         }
         response = self.authorized_client.post(
@@ -156,3 +157,22 @@ class PostFormTests(TestCase):
         self.assertEqual(comment.text, form_data['text'])
         self.assertEqual(comment.post, PostFormTests.post)
         self.assertEqual(comment.author, PostFormTests.user)
+
+    def test_guest_client_cannot_create_comment_for_post(self):
+        """"Анон не создаст коммент"""
+        Post.objects.create(
+            text='Тестовый текст',
+            author=self.user
+        )
+        form_data = {
+            'text': 'Тестовый комментарий',
+            'author': self.guest_client,
+        }
+        post_id = Post.objects.count()
+        comments_count = Comment.objects.count()
+        self.guest_client.post(
+            reverse('posts:add_comment', kwargs={'post_id': post_id}),
+            data=form_data,
+            follow=True
+        )
+        self.assertEqual(Comment.objects.count(), comments_count)

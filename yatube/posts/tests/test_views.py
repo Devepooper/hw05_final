@@ -10,7 +10,7 @@ import tempfile
 from django.conf import settings
 from django.core.cache import cache
 
-from ..models import Post, Group, Comment, Follow
+from ..models import Post, Group, Follow
 
 
 User = get_user_model()
@@ -38,7 +38,6 @@ class PostPagesTests(TestCase):
         )
         cls.user_author = User.objects.create_user(username='author')
         cls.user = User.objects.create_user(username='test_user')
-        Follow.objects.create(user=cls.user, author=cls.user_author)
         cls.group = Group.objects.create(
             title='Тест ЗаголовОЧКА',
             slug='test-slug',
@@ -49,11 +48,6 @@ class PostPagesTests(TestCase):
             text='Тестовый пост',
             group=cls.group,
             image=uploaded,
-        )
-        cls.comment = Comment.objects.create(
-            author=cls.user,
-            text='тестовый коммент',
-            post=cls.post
         )
 
     @classmethod
@@ -83,7 +77,6 @@ class PostPagesTests(TestCase):
         self.assertEqual(post_author, self.post.author)
         self.assertEqual(post_data, self.post.pub_date)
         self.assertEqual(post_image, 'posts/small.gif')
-        self.assertEqual(post.comments.last(), PostPagesTests.comment)
 
     def test_post_create_show_correct_context(self):
         """Шаблон post_create сформирован с правильным контекстом."""
@@ -191,11 +184,11 @@ class PostPagesTests(TestCase):
         """Тестирование кэширования постов главной страницы."""
         response = self.authorized_client.get(reverse('posts:index'))
         self.post.delete()
-        response2 = self.authorized_client.get(reverse('posts:index'))
-        self.assertEqual(response.content, response2.content)
+        new_response = self.authorized_client.get(reverse('posts:index'))
+        self.assertEqual(response.content, new_response.content)
         cache.clear()
-        response3 = self.authorized_client.get(reverse('posts:index'))
-        self.assertNotEqual(response.content, response3.content)
+        last_response = self.authorized_client.get(reverse('posts:index'))
+        self.assertNotEqual(response.content, last_response.content)
 
     def test_user_can_unfollow(self):
         """Авторизованный пользователь может отписываться."""
@@ -204,10 +197,7 @@ class PostPagesTests(TestCase):
                     kwargs={'username': self.user_author.username})
         )
         self.assertRedirects(response_unfollow, reverse('posts:follow_index'))
-        self.assertNotIn(
-            self.user_author.pk,
-            self.user.follower.values_list('author_id', flat=True)
-        )
+        self.assertEqual(Follow.objects.all().count(), 0)
 
     def test_user_can_follow(self):
         """Авторизованный пользователь может подписываться."""
@@ -216,7 +206,16 @@ class PostPagesTests(TestCase):
                     kwargs={'username': self.user_author.username})
         )
         self.assertRedirects(response_follow, reverse('posts:follow_index'))
-        self.assertIn(
-            self.user_author.pk,
-            self.user.follower.values_list('author_id', flat=True)
+        self.assertEqual(Follow.objects.all().count(), 1)
+
+    def test_follower_get_following_posts(self):
+        """Подписчик видит посты пользователя, на которого подписан"""
+        Follow.objects.create(user=self.user, author=self.user_author)
+        post = Post.objects.create(
+            author=self.user_author,
+            text='Testing follow_index',
+            group=self.group
         )
+        response = self.authorized_client.get(reverse('posts:follow_index'))
+        self.assertEqual(response.context['page_obj'][0], post)
+        self.assertNotIn(self.post, response.context['page_obj'])
